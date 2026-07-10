@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizlet Embed Generator</title>
+    <style>
+        :root {
+            --primary: #4255ff;
+            --background: #f6f7fb;
+            --surface: #ffffff;
+            --text: #282e3e;
+            --border: #e8e8e8;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--text);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        select {
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        .primary-btn {
+            padding: 10px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .primary-btn:hover {
+            background-color: #3644cc;
+        }
+
+        #error-message {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .iframe-container {
+            width: 100%;
+            max-width: 1000px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: var(--surface);
+            display: none; /* Hidden until loaded */
+        }
+
+        /* Toolbar containing the Full Screen button */
+        .iframe-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .fullscreen-btn {
+            padding: 6px 14px;
+            background-color: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .fullscreen-btn:hover {
+            background-color: var(--background);
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Iframe default styling */
+        #embedArea {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        #embedArea iframe {
+            display: block;
+            width: 100%;
+            height: 600px;
+            border: 0;
+            background-color: white;
+        }
+
+        /* --- Fullscreen Mode Styles --- */
+        .iframe-container:fullscreen, 
+        .iframe-container:-webkit-full-screen {
+            max-width: none;
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .iframe-container:fullscreen #embedArea,
+        .iframe-container:-webkit-full-screen #embedArea {
+            flex: 1; /* Grow to fill screen */
+            height: 100%; 
+        }
+
+        .iframe-container:fullscreen iframe,
+        .iframe-container:-webkit-full-screen iframe {
+            flex: 1; /* Tell the iframe to consume the height passed from #embedArea */
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Quizlet Embed Generator</h1>
+        <p>Paste your Quizlet link below to generate a study frame without learning limits.</p>
+        
+        <div class="input-group">
+            <input type="text" id="quizletUrl" placeholder="e.g., https://quizlet.com/71423054/network-port-numbers-flash-cards/" autocomplete="off">
+            <select id="studyMode">
+                <option value="learn">Learn</option>
+                <option value="match">Match</option>
+                <option value="flashcards">Flashcards</option>
+                <option value="test">Test</option>
+            </select>
+            <button class="primary-btn" onclick="generateEmbed()">Load Study Set</button>
+        </div>
+        <div id="error-message">Please enter a valid Quizlet URL containing the set ID (e.g., /12345678/).</div>
+    </div>
+
+    <!-- The container that will go full screen -->
+    <div class="iframe-container" id="iframeWrapper">
+        <div class="iframe-toolbar">
+            <button class="fullscreen-btn" id="fsButton" onclick="toggleFullScreen()">
+                ⛶ Full Screen
+            </button>
+        </div>
+        <div id="embedArea"></div>
+    </div>
+
+    <script>
+        const iframeWrapper = document.getElementById('iframeWrapper');
+        const fsButton = document.getElementById('fsButton');
+
+        function generateEmbed() {
+            const urlInput = document.getElementById('quizletUrl').value.trim();
+            const mode = document.getElementById('studyMode').value;
+            const errorMsg = document.getElementById('error-message');
+            const embedArea = document.getElementById('embedArea');
+
+            // Regex to extract the numeric Quizlet ID from the URL
+            const idMatch = urlInput.match(/quizlet\.com\/(\d+)/);
+
+            if (idMatch && idMatch[1]) {
+                errorMsg.style.display = 'none';
+                const setId = idMatch[1];
+                
+                // Construct the embed URL
+                const embedUrl = `https://quizlet.com/${setId}/${mode}/embed`;
+                
+                // Generate the iframe
+                embedArea.innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+                iframeWrapper.style.display = 'flex'; // Changed to flex for structural integrity
+                iframeWrapper.style.flexDirection = 'column';
+            } else {
+                errorMsg.style.display = 'block';
+                iframeWrapper.style.display = 'none';
+                embedArea.innerHTML = '';
+            }
+        }
+
+        // Allow pressing "Enter" to trigger the button
+        document.getElementById('quizletUrl').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                generateEmbed();
+            }
+        });
+
+        // Full Screen Toggle Logic
+        function toggleFullScreen() {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                // Enter full screen
+                if (iframeWrapper.requestFullscreen) {
+                    iframeWrapper.requestFullscreen();
+                } else if (iframeWrapper.webkitRequestFullscreen) { /* Safari */
+                    iframeWrapper.webkitRequestFullscreen();
+                }
+            } else {
+                // Exit full screen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) { /* Safari */
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        // Update button text when full screen state changes (including if user presses ESC)
+        function handleFullscreenChange() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                fsButton.innerHTML = '✖ Exit Full Screen';
+            } else {
+                fsButton.innerHTML = '⛶ Full Screen';
+            }
+        }
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    </script>
+
+</body>
+</html>
