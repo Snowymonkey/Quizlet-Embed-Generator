@@ -21,4 +21,4 @@ A lightweight, single-file HTML utility that lets you study Quizlet sets in **Le
 
 ## Notes
 
-Bypass found by Lukas Armstrong, HTML code written by Gemeni.
+Bypass found by Lukas Armstrong, HTML code written by Gemini.
